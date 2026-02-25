@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: opensearch-pvc
+  namespace: elephant
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opensearch
+  namespace: elephant
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch
+  template:
+    metadata:
+      labels:
+        app: opensearch
+    spec:
+      containers:
+      - name: opensearch
+        image: opensearchproject/opensearch:latest
+        env:
+        - name: discovery.type
+          value: "single-node"
+        - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+          value: "Admin123!"
+        - name: DISABLE_SECURITY_PLUGIN
+          value: "true"
+        ports:
+        - containerPort: 9200
+          name: http
+        - containerPort: 9600
+          name: performance
+        volumeMounts:
+        - name: opensearch-storage
+          mountPath: /usr/share/opensearch/data
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 9200
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: opensearch-storage
+        persistentVolumeClaim:
+          claimName: opensearch-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch
+  namespace: elephant
+spec:
+  selector:
+    app: opensearch
+  ports:
+  - port: 9200
+    targetPort: 9200
+    name: http
+  - port: 9600
+    targetPort: 9600
+    name: performance
